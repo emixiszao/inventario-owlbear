@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Item</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+  html, body { margin:0; height:100%; background:transparent; font-family:Georgia,'Times New Roman',serif; color:#eee; overflow:hidden; }
+  #ov { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+        padding:24px 10vw 34px; background:radial-gradient(ellipse at center, rgba(22,24,36,.93), rgba(4,5,9,.97)); animation:entra .45s ease; }
+  @keyframes entra { from { opacity:0; transform:scale(1.03); } to { opacity:1; transform:none; } }
+  .rb { width:36px; height:36px; border:0; border-radius:50%; background:#ffffff1c; color:#fff; font-size:16px; cursor:pointer; }
+  .rb:hover { background:#ffffff40; } .rb.on { background:#fff; color:#111; }
+  #x { position:absolute; top:14px; right:16px; }
+  #tools { position:absolute; top:14px; left:16px; display:flex; align-items:center; gap:6px; }
+  #tools span { font:12px system-ui,sans-serif; color:#cfd2e2; min-width:34px; text-align:center; }
+  #nome { margin:0; text-align:center; font-size:clamp(22px,3.4vw,38px); letter-spacing:.07em; text-transform:uppercase; color:#fff; text-shadow:0 2px 18px #000; }
+  #meta { text-align:center; font:clamp(11px,1.3vw,14px) system-ui,sans-serif; letter-spacing:.14em; text-transform:uppercase; color:#80849a; }
+  #desc { max-width:700px; width:100%; max-height:28vh; overflow:auto; text-align:justify; hyphens:auto; font-size:clamp(14px,1.7vw,18px); line-height:1.55; color:#d6d8e4; padding:0 6px; }
+  #desc b { color:#fff; }
+  #barra { position:absolute; left:0; right:0; bottom:0; height:5px; background:#ffffff1f; }
+  #prog { display:block; height:100%; width:100%; background:#fff; transform-origin:left; }
+
+  /* modo lupa */
+  .lupa { --hmax:62vh; }
+  .lupa .holo { animation:none !important; cursor:crosshair; }
+  .lupa .holo-in { transform:none !important; filter:none !important; }
+  .lupa .h-glow { display:none; }
+  .lupa #desc { max-height:12vh; }
+  #lente { position:fixed; display:none; width:240px; height:240px; box-sizing:border-box; border:3px solid #fff; border-radius:50%;
+           background-color:#000; background-repeat:no-repeat; box-shadow:0 6px 28px #000c; pointer-events:none; z-index:20; }
+</style>
+</head>
+<body>
+<div id="ov">
+  <div id="tools" hidden>
+    <button class="rb" id="lupa" title="Lupa (zoom para ler)">🔍</button>
+    <span id="zl-menos-wrap" hidden><button class="rb" id="zm" title="Diminuir zoom">−</button></span>
+    <span id="zlabel" hidden></span>
+    <span id="zl-mais-wrap" hidden><button class="rb" id="zp" title="Aumentar zoom">+</button></span>
+  </div>
+  <button class="rb" id="x" title="Fechar">✕</button>
+  <div id="img"></div>
+  <h1 id="nome"></h1>
+  <div id="meta"></div>
+  <div id="desc"></div>
+  <div id="barra"><i id="prog"></i></div>
+</div>
+<div id="lente"></div>
+
+<script type="module">
+import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3";
+import { MODAL_ANUNCIO, romano, sanitize, holoHTML, initHolo } from "./shared.js";
+
+const $ = s => document.querySelector(s);
+const DURACAO = 8000; // tempo na tela, em milissegundos
+let dados = {};
+try { dados = JSON.parse(new URLSearchParams(location.search).get("d") || "{}"); } catch (e) {}
+
+$("#nome").textContent = dados.nome || "";
+$("#desc").innerHTML = sanitize(dados.descricao || "");
+const partes = [];
+if (dados.tipo) partes.push(dados.tipo);
+if (dados.categoria !== undefined && dados.categoria !== null) partes.push("Categoria " + romano(dados.categoria));
+if (dados.peso !== undefined && dados.peso !== null) partes.push("Peso " + String(dados.peso).replace(".", ","));
+$("#meta").textContent = partes.join("  ·  ");
+
+const imgBox = $("#img");
+const temImg = dados.img && /^https?:\/\//.test(dados.img);
+if (temImg) {
+  imgBox.innerHTML = holoHTML(dados.img);
+  initHolo(imgBox.querySelector(".holo"));
+  $("#tools").hidden = false;
+}
+
+/* ---- som ---- */
+const som = new Audio("anuncio.mp3");
+som.volume = 0.8;
+som.play().catch(() => addEventListener("pointerdown", () => som.play().catch(() => {}), { once: true }));
+
+/* ---- fechar ---- */
+let fechado = false;
+function fechar() {
+  if (fechado) return; fechado = true;
+  OBR.modal.close(MODAL_ANUNCIO).catch(() => {});
+}
+$("#x").onclick = fechar;
+$("#ov").addEventListener("click", e => {
+  if (lupa) return;
+  if (!e.target.closest(".holo") && !e.target.closest("#desc") && !e.target.closest("#tools") && e.target.id !== "nome") fechar();
+});
+
+/* ---- lupa ---- */
+let lupa = false, zoom = 2.5;
+const lente = $("#lente");
+const mostrarZoom = () => { $("#zlabel").textContent = "×" + zoom.toFixed(1).replace(".", ","); };
+function setZoom(z) { zoom = Math.min(8, Math.max(1.5, z)); mostrarZoom(); }
+function setLupa(on) {
+  lupa = on;
+  $("#ov").classList.toggle("lupa", on);
+  $("#lupa").classList.toggle("on", on);
+  for (const id of ["zl-menos-wrap", "zlabel", "zl-mais-wrap"]) $("#" + id).hidden = !on;
+  lente.style.display = "none"; mostrarZoom();
+}
+$("#lupa").onclick = () => setLupa(!lupa);
+$("#zm").onclick = () => setZoom(zoom / 1.25);
+$("#zp").onclick = () => setZoom(zoom * 1.25);
+imgBox.addEventListener("pointermove", e => {
+  if (!lupa) return;
+  const base = imgBox.querySelector(".h-base");
+  const r = base.getBoundingClientRect();
+  const x = e.clientX - r.left, y = e.clientY - r.top;
+  if (x < 0 || y < 0 || x > r.width || y > r.height) { lente.style.display = "none"; return; }
+  const S = lente.offsetWidth, meio = lente.clientWidth / 2;
+  const subir = e.pointerType === "touch" ? S / 2 + 60 : 0; // no toque, a lupa fica acima do dedo
+  lente.style.display = "block";
+  lente.style.left = (e.clientX - S / 2) + "px";
+  lente.style.top = (e.clientY - S / 2 - subir) + "px";
+  lente.style.backgroundImage = `url("${dados.img}")`;
+  lente.style.backgroundSize = `${r.width * zoom}px ${r.height * zoom}px`;
+  lente.style.backgroundPosition = `${meio - x * zoom}px ${meio - y * zoom}px`;
+});
+imgBox.addEventListener("pointerleave", () => { lente.style.display = "none"; });
+imgBox.addEventListener("wheel", e => {
+  if (!lupa) return;
+  e.preventDefault();
+  setZoom(zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15));
+}, { passive: false });
+
+/* ---- contagem regressiva (pausa ao mexer no item ou usar a lupa) ---- */
+const prog = $("#prog");
+let decorrido = 0, ultimo = performance.now(), sobre = false;
+for (const el of [imgBox, $("#desc"), $("#tools")]) {
+  el.addEventListener("pointerenter", () => sobre = true);
+  el.addEventListener("pointerleave", () => sobre = false);
+}
+(function tick(agora) {
+  if (fechado) return;
+  if (!sobre && !lupa) decorrido += agora - ultimo;
+  ultimo = agora;
+  prog.style.transform = `scaleX(${Math.max(0, 1 - decorrido / DURACAO)})`;
+  if (decorrido >= DURACAO) return fechar();
+  requestAnimationFrame(tick);
+})(performance.now());
+
+OBR.onReady(() => {});
+</script>
+</body>
+</html>

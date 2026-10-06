@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inventário</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+  :root { --bg:#1e2231; --card:#2a3045; --line:#3a4260; --text:#e8e6f0; --muted:#9aa0b8; --gold:#d9925e; --ok:#3f8f5a; --bad:#a64848; --acc:#7a5cd6; }
+  * { box-sizing:border-box; }
+  html, body { height:100%; margin:0; }
+  body { background:var(--bg); color:var(--text); font-family:system-ui,sans-serif; font-size:13px; }
+  #app { display:flex; flex-direction:column; height:100%; }
+  header { display:flex; align-items:center; gap:10px; padding:10px 12px 6px; } header h1 { flex:1; }
+  h1 { margin:0; font-size:15px; letter-spacing:.06em; text-transform:uppercase; }
+  #papel { font-size:11px; color:var(--muted); }
+  #principal { flex:1; min-height:0; overflow:auto; padding:0 12px 8px; }
+  [hidden] { display:none !important; }
+
+  button { border:0; border-radius:6px; padding:6px 10px; font-size:12px; font-weight:600; color:#fff; background:var(--line); cursor:pointer; }
+  button:hover { filter:brightness(1.2); }
+  button.p { background:var(--acc); } button.ok { background:var(--ok); } button.bad { background:var(--bad); } button.on { background:var(--ok); }
+  input, select { width:100%; padding:7px; border-radius:6px; border:1px solid #444b66; background:#14171f; color:var(--text); font-size:13px; }
+  label { display:block; margin:8px 0 3px; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+
+  .abas { display:flex; gap:6px; margin:4px 0 8px; }
+  .abas button { flex:1; } .abas button.sel { background:var(--acc); }
+  .barra { display:flex; gap:6px; margin-bottom:8px; } .barra input { flex:1; }
+  .vazio { text-align:center; color:var(--muted); padding:22px 8px; }
+
+  .item { background:var(--card); border-radius:10px; padding:8px; margin-bottom:8px; display:grid; grid-template-columns:auto 1fr; gap:8px 10px; }
+  .thumb { width:52px; height:52px; border-radius:8px; background:#14171f; display:flex; align-items:center; justify-content:center; overflow:hidden; cursor:pointer; }
+  .thumb img { max-width:100%; max-height:100%; }
+  .thumb.vz { cursor:default; color:var(--muted); font-size:10px; }
+  .info b { display:block; font-size:14px; } .info small { color:var(--muted); }
+  .acoes { grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:6px; }
+  .desc { grid-column:1 / -1; max-height:110px; overflow:auto; font-size:12.5px; line-height:1.45; color:#cfd2e2; background:#14171f; border-radius:6px; padding:7px 8px; }
+
+  #form { background:var(--card); border-radius:10px; padding:10px; }
+  #form h2 { margin:0 0 4px; font-size:14px; }
+  .linha { display:flex; gap:8px; } .linha > div { flex:1; }
+  #desc-ed { min-height:84px; max-height:160px; overflow:auto; padding:8px; border-radius:6px; border:1px solid #444b66; background:#14171f; line-height:1.45; outline:none; }
+  #desc-ed:empty::before { content:attr(data-ph); color:#6a7090; }
+  .tb { display:flex; gap:6px; margin-bottom:4px; }
+  .imgrow { display:flex; gap:10px; align-items:center; }
+  #prev { width:72px; height:72px; border-radius:8px; background:#14171f; display:flex; align-items:center; justify-content:center; overflow:hidden; color:var(--muted); font-size:10px; text-align:center; }
+  #prev img { max-width:100%; max-height:100%; }
+  .btns { display:flex; flex-wrap:wrap; gap:6px; } .btns.fim { margin-top:12px; justify-content:flex-end; }
+  small.dica { display:block; margin-top:5px; color:var(--muted); font-size:11px; line-height:1.4; }
+
+  #toast { position:fixed; left:50%; bottom:14px; transform:translateX(-50%); background:#000d; color:#fff; padding:8px 14px; border-radius:20px; font-size:12px; opacity:0; pointer-events:none; transition:opacity .25s; z-index:9; max-width:90%; text-align:center; }
+  #toast.v { opacity:1; }
+
+  #rodape { padding:8px 12px; border-top:1px solid var(--line); display:flex; gap:6px; }
+  #rodape button { flex:1; }
+  #criswrap { border-top:1px solid var(--line); display:flex; flex-direction:column; height:var(--ch,68%); }
+  #crisbar { display:flex; align-items:center; gap:8px; padding:6px 12px; font-size:12px; color:var(--muted); }
+  #crisbar span { flex:1; }
+  #crisbar a { color:#9db8ff; font-size:12px; }
+  #cris { flex:1; width:100%; border:0; background:#fff; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header><h1>Inventário</h1><span id="papel"></span><button id="som-btn" class="p" title="Clique uma vez por sessão para o som dos anúncios tocar sozinho">🔊 Ativar som</button></header>
+
+  <div id="principal">
+    <!-- ===== MESTRE ===== -->
+    <div id="gm" hidden>
+      <div class="abas">
+        <button id="aba-banco" class="sel">Banco de itens</button>
+        <button id="aba-lista">Na lista dos jogadores</button>
+      </div>
+
+      <div id="v-banco">
+        <div id="v-bancolista">
+          <div class="barra">
+            <input id="busca" placeholder="Buscar item...">
+            <button class="p" id="novo">+ Novo item</button>
+          </div>
+          <div id="bancoLista"></div>
+          <div class="btns" style="margin-top:6px">
+            <button id="exp">Exportar backup</button>
+            <button id="imp">Importar backup</button>
+            <input id="impfile" type="file" accept="application/json" hidden>
+          </div>
+          <small class="dica">Os itens ficam salvos neste navegador. Exporte um backup de vez em quando.</small>
+        </div>
+
+        <div id="form" hidden>
+          <h2 id="form-titulo">Novo item</h2>
+          <label>Nome</label>
+          <input id="f-nome" maxlength="80">
+          <label>Descrição</label>
+          <div class="tb"><button id="negrito" type="button"><b>B</b> Negrito</button></div>
+          <div id="desc-ed" contenteditable="true" data-ph="O que o item faz... (selecione um trecho e clique em Negrito)"></div>
+          <div class="linha">
+            <div><label>Peso</label><input id="f-peso" type="number" min="0" step="0.5" value="1"></div>
+            <div><label>Categoria</label>
+              <select id="f-cat"><option value="0">0</option><option value="1">I</option><option value="2">II</option><option value="3">III</option><option value="4">IV</option></select></div>
+          </div>
+          <label>Tipo</label>
+          <select id="f-tipo"></select>
+          <label>Imagem</label>
+          <div class="imgrow">
+            <div id="prev">sem imagem</div>
+            <div class="btns">
+              <button id="img-lib" type="button">Biblioteca Owlbear</button>
+              <button id="img-up" type="button">Enviar imagem nova</button>
+              <input id="img-file" type="file" accept="image/*" hidden>
+              <button id="img-rm" type="button">Remover</button>
+            </div>
+          </div>
+          <input id="f-url" placeholder="ou cole o link (https://...) de uma imagem" style="margin-top:8px">
+          <small class="dica">“Enviar imagem nova” manda o arquivo para a sua biblioteca do Owlbear. Depois clique em “Biblioteca Owlbear” e escolha a imagem enviada.</small>
+          <div class="btns fim">
+            <button id="f-cancel" type="button">Cancelar</button>
+            <button id="f-save" type="button" class="ok">Salvar item</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="v-lista" hidden><div id="gmLista"></div></div>
+    </div>
+
+    <!-- ===== JOGADORES ===== -->
+    <div id="jog" hidden><div id="jogLista"></div></div>
+  </div>
+
+  <div id="criswrap" hidden>
+    <div id="crisbar"><span>Cris — cole aqui o nome e a descrição</span><a id="cris-aba" target="_blank" rel="noopener">nova aba</a><button id="cris-tam">Maior</button><button id="cris-fechar">Fechar</button></div>
+    <iframe id="cris" title="Cris"></iframe>
+  </div>
+  <div id="rodape"><button id="cris-btn" class="p">Abrir Cris</button></div>
+</div>
+<div id="toast"></div>
+
+<script type="module">
+import OBR, { buildImageUpload } from "https://esm.sh/@owlbear-rodeo/sdk@3";
+import { BASE, K_LISTA, CH_ANUNCIO, MODAL_ANUNCIO, TIPOS, romano, novoId, sanitize, copiarRico, copiarTexto, holoHTML } from "./shared.js";
+
+const CRIS_URL = "https://crisordemparanormal.com";
+const LS = "inventario:banco:v1";
+const $ = s => document.querySelector(s);
+
+/* ---------- utilidades ---------- */
+function h(tag, props = {}, ...filhos) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === "class") e.className = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v);
+  }
+  for (const f of filhos.flat()) if (f != null) e.append(f);
+  return e;
+}
+let toastT;
+function toast(msg) {
+  const t = $("#toast"); t.textContent = msg; t.classList.add("v");
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("v"), 2600);
+}
+const fmt = n => String(n).replace(".", ",");
+function btn(txt, cls, fn) { return h("button", { class: cls || "", onclick: fn }, txt); }
+function btnConfirma(txt, fn) {
+  const b = h("button", { class: "bad" }, txt); let t;
+  b.onclick = () => {
+    if (b.dataset.c) { clearTimeout(t); fn(); return; }
+    b.dataset.c = 1; b.textContent = "Confirmar?";
+    t = setTimeout(() => { delete b.dataset.c; b.textContent = txt; }, 3000);
+  };
+  return b;
+}
+function thumb(img, aoClicar) {
+  if (img && /^https?:\/\//.test(img)) {
+    const d = h("div", { class: "thumb", title: "Ver o item" }, h("img", { src: img, alt: "" }));
+    if (aoClicar) d.onclick = aoClicar; return d;
+  }
+  return h("div", { class: "thumb vz" }, "sem img");
+}
+const urlAnuncio = d => BASE + "anuncio.html?som=0&d=" + encodeURIComponent(JSON.stringify(d));
+
+/* ---------- estado ---------- */
+let banco = []; try { banco = JSON.parse(localStorage.getItem(LS) || "[]"); } catch (e) {}
+const salvarBanco = () => { try { localStorage.setItem(LS, JSON.stringify(banco)); } catch (e) { toast("Não consegui salvar neste navegador."); } };
+let lista = [];
+let isGM = false, editandoId = null, imgAtual = "";
+
+/* ---------- lista compartilhada (dados da sala, máx. 16 kB) ---------- */
+async function salvarLista(nova) {
+  const meta = await OBR.room.getMetadata();
+  const outros = { ...meta }; delete outros[K_LISTA];
+  const tam = new Blob([JSON.stringify(outros)]).size + new Blob([JSON.stringify(nova)]).size;
+  if (tam > 15000) { toast("A lista ficou grande demais. Retire algum item antes de adicionar outro."); return false; }
+  await OBR.room.setMetadata({ [K_LISTA]: nova });
+  return true;
+}
+const paraLista = it => ({ id: it.id, nome: it.nome, descricao: it.descricao, peso: it.peso, categoria: it.categoria, tipo: it.tipo, img: it.img || "" });
+
+async function alternarLista(it) {
+  const jaTem = lista.some(l => l.id === it.id);
+  const nova = jaTem ? lista.filter(l => l.id !== it.id) : [...lista, paraLista(it)];
+  if (await salvarLista(nova)) toast(jaTem ? "Retirado da lista dos jogadores." : "Item liberado na lista dos jogadores.");
+}
+async function retirarDaLista(id) { await salvarLista(lista.filter(l => l.id !== id)); }
+
+/* ---------- anúncio ---------- */
+async function anunciar(it) {
+  const dados = { nome: it.nome, descricao: it.descricao, img: it.img || "", tipo: it.tipo, categoria: it.categoria, peso: it.peso };
+  if (new Blob([JSON.stringify(dados)]).size > 15000) { toast("Descrição grande demais para anunciar."); return; }
+  try { await OBR.broadcast.sendMessage(CH_ANUNCIO, dados, { destination: "ALL" }); toast("Item anunciado!"); }
+  catch (e) { toast("Não consegui anunciar."); console.error(e); }
+}
+function verLocal(it) {
+  OBR.modal.open({ id: MODAL_ANUNCIO, url: urlAnuncio({ nome: it.nome, descricao: it.descricao, img: it.img || "", tipo: it.tipo, categoria: it.categoria, peso: it.peso }), fullScreen: true, hidePaper: true });
+}
+
+/* ---------- render: banco do mestre ---------- */
+function renderBanco() {
+  const q = $("#busca").value.trim().toLowerCase();
+  const box = $("#bancoLista"); box.innerHTML = "";
+  const itens = banco.filter(i => !q || (i.nome + " " + i.tipo).toLowerCase().includes(q));
+  if (!itens.length) { box.append(h("div", { class: "vazio" }, banco.length ? "Nenhum item encontrado." : "Nenhum item ainda. Clique em “+ Novo item”.")); return; }
+  for (const it of itens) {
+    const naLista = lista.some(l => l.id === it.id);
+    box.append(h("div", { class: "item" },
+      thumb(it.img, () => verLocal(it)),
+      h("div", { class: "info" }, h("b", {}, it.nome), h("small", {}, `${it.tipo} · Cat. ${romano(it.categoria)} · Peso ${fmt(it.peso)}`)),
+      h("div", { class: "acoes" },
+        btn("Anunciar", "p", () => anunciar(it)),
+        btn(naLista ? "Na lista ✓" : "Mostrar na lista", naLista ? "on" : "", () => alternarLista(it)),
+        btn("Editar", "", () => abrirForm(it)),
+        btnConfirma("Excluir", () => excluir(it)))));
+  }
+}
+async function excluir(it) {
+  banco = banco.filter(b => b.id !== it.id); salvarBanco();
+  if (lista.some(l => l.id === it.id)) await retirarDaLista(it.id);
+  renderBanco(); toast("Item excluído.");
+}
+
+/* ---------- render: cartões (jogadores e aba do mestre) ---------- */
+function renderCards(box, gm) {
+  box.innerHTML = "";
+  if (!lista.length) { box.append(h("div", { class: "vazio" }, "Nenhum item liberado ainda.")); return; }
+  for (const it of lista) {
+    const desc = h("div", { class: "desc" }); desc.innerHTML = sanitize(it.descricao);
+    const copiar = async (fn, ok) => toast((await fn()) ? ok : "Não consegui copiar.");
+    box.append(h("div", { class: "item" },
+      thumb(it.img, () => verLocal(it)),
+      h("div", { class: "info" }, h("b", {}, it.nome), h("small", {}, `${it.tipo} · Cat. ${romano(it.categoria)} · Peso ${fmt(it.peso)}`)),
+      desc,
+      h("div", { class: "acoes" },
+        btn("Copiar nome", "p", () => copiar(() => copiarTexto(it.nome), "Nome copiado!")),
+        btn("Copiar descrição", "p", () => copiar(() => copiarRico(it.descricao), "Descrição copiada (com negrito)!")),
+        btn("Ver", "", () => verLocal(it)),
+        gm ? btnConfirma("Retirar", () => retirarDaLista(it.id)) : null)));
+  }
+}
+function renderTudo() {
+  if (isGM) { renderBanco(); renderCards($("#gmLista"), true); $("#aba-lista").textContent = `Na lista dos jogadores (${lista.length})`; }
+  else renderCards($("#jogLista"), false);
+}
+
+/* ---------- formulário do mestre ---------- */
+function mostrarImg(url) {
+  imgAtual = url || "";
+  const p = $("#prev"); p.innerHTML = "";
+  if (imgAtual) p.append(h("img", { src: imgAtual, alt: "" })); else p.textContent = "sem imagem";
+  $("#f-url").value = imgAtual.startsWith("http") ? imgAtual : "";
+}
+function abrirForm(it) {
+  editandoId = it ? it.id : null;
+  $("#form-titulo").textContent = it ? "Editar item" : "Novo item";
+  $("#f-nome").value = it ? it.nome : "";
+  $("#desc-ed").innerHTML = it ? sanitize(it.descricao) : "";
+  $("#f-peso").value = it ? it.peso : 1;
+  $("#f-cat").value = it ? it.categoria : 0;
+  $("#f-tipo").value = it ? it.tipo : TIPOS[0];
+  mostrarImg(it ? it.img : "");
+  $("#v-bancolista").hidden = true; $("#form").hidden = false;
+  $("#principal").scrollTop = 0;
+}
+function fecharForm() { $("#form").hidden = true; $("#v-bancolista").hidden = false; }
+
+async function salvarItem() {
+  const nome = $("#f-nome").value.trim();
+  if (!nome) { toast("Dê um nome ao item."); return; }
+  const item = {
+    id: editandoId || novoId(), nome,
+    descricao: sanitize($("#desc-ed").innerHTML),
+    peso: Math.max(0, parseFloat($("#f-peso").value) || 0),
+    categoria: parseInt($("#f-cat").value, 10) || 0,
+    tipo: $("#f-tipo").value,
+    img: imgAtual
+  };
+  const i = banco.findIndex(b => b.id === item.id);
+  if (i >= 0) banco[i] = item; else banco.push(item);
+  salvarBanco();
+  if (lista.some(l => l.id === item.id)) await salvarLista(lista.map(l => l.id === item.id ? paraLista(item) : l));
+  fecharForm(); renderBanco(); toast("Item salvo.");
+}
+
+async function escolherDaBiblioteca() {
+  try {
+    const res = await OBR.assets.downloadImages(false);
+    const primeiro = Array.isArray(res) ? res[0] : res;
+    const url = primeiro?.image?.url || primeiro?.url;
+    if (url) { mostrarImg(url); toast("Imagem escolhida."); }
+  } catch (e) { console.error(e); toast("Não consegui abrir a biblioteca. Use o campo de link."); }
+}
+async function enviarImagem(file) {
+  if (!file) return;
+  try {
+    const dados = await file.arrayBuffer();
+    const copia = new File([dados], file.name, { type: file.type });
+    await OBR.assets.uploadImages([buildImageUpload(copia).build()]);
+    toast("Imagem enviada! Agora clique em “Biblioteca Owlbear” e escolha ela.");
+  } catch (e) { console.error(e); toast("Não consegui enviar a imagem."); }
+}
+
+function exportar() {
+  const blob = new Blob([JSON.stringify(banco, null, 2)], { type: "application/json" });
+  const a = h("a", { href: URL.createObjectURL(blob), download: "inventario-backup.json" });
+  document.body.append(a); a.click(); a.remove();
+}
+async function importar(file) {
+  if (!file) return;
+  try {
+    const dados = JSON.parse(await file.text());
+    if (!Array.isArray(dados)) throw 0;
+    const ids = new Set(banco.map(b => b.id));
+    for (const d of dados) if (d && d.nome && !ids.has(d.id)) banco.push({ ...d, id: d.id || novoId() });
+    salvarBanco(); renderBanco(); toast("Backup importado.");
+  } catch (e) { toast("Arquivo de backup inválido."); }
+}
+
+/* ---------- Cris embutido ---------- */
+async function alturaCris(aberto) {
+  try {
+    const vh = await OBR.viewport.getHeight();
+    const vw = await OBR.viewport.getWidth();
+    await OBR.action.setWidth(aberto ? Math.min(660, Math.max(vw - 100, 440)) : 440);
+    await OBR.action.setHeight(aberto ? Math.min(Math.max(vh - 60, 600), 980) : 600);
+  } catch (e) {}
+}
+function alternarCris(abrir) {
+  const w = $("#criswrap");
+  if (abrir && !$("#cris").src) $("#cris").src = CRIS_URL;
+  w.hidden = !abrir;
+  $("#principal").style.flex = abrir ? "1 1 0" : "1";
+  $("#cris-btn").textContent = abrir ? "Cris aberto ↓" : "Abrir Cris";
+  alturaCris(abrir);
+}
+
+/* ---------- início ---------- */
+function aplicarPapel(gm) {
+  isGM = gm;
+  $("#gm").hidden = !gm; $("#jog").hidden = gm;
+  $("#papel").textContent = gm ? "Mestre" : "Jogador";
+  renderTudo();
+}
+function aba(qual) {
+  $("#aba-banco").classList.toggle("sel", qual === "banco");
+  $("#aba-lista").classList.toggle("sel", qual === "lista");
+  $("#v-banco").hidden = qual !== "banco"; $("#v-lista").hidden = qual !== "lista";
+}
+
+for (const t of TIPOS) $("#f-tipo").append(h("option", { value: t }, t));
+$("#aba-banco").onclick = () => aba("banco");
+$("#aba-lista").onclick = () => aba("lista");
+$("#novo").onclick = () => abrirForm(null);
+$("#busca").oninput = renderBanco;
+$("#f-cancel").onclick = fecharForm;
+$("#f-save").onclick = salvarItem;
+$("#negrito").onmousedown = e => { e.preventDefault(); document.execCommand("bold"); };
+$("#img-lib").onclick = escolherDaBiblioteca;
+$("#img-up").onclick = () => $("#img-file").click();
+$("#img-file").onchange = e => { enviarImagem(e.target.files[0]); e.target.value = ""; };
+$("#img-rm").onclick = () => mostrarImg("");
+$("#f-url").onchange = e => { const v = e.target.value.trim(); if (/^https:\/\//.test(v)) mostrarImg(v); else if (!v) mostrarImg(""); else toast("O link precisa começar com https://"); };
+$("#exp").onclick = exportar;
+$("#imp").onclick = () => $("#impfile").click();
+$("#impfile").onchange = e => { importar(e.target.files[0]); e.target.value = ""; };
+$("#cris-btn").onclick = () => alternarCris($("#criswrap").hidden);
+$("#cris-fechar").onclick = () => alternarCris(false);
+let crisGrande = false;
+$("#cris-tam").onclick = () => {
+  crisGrande = !crisGrande;
+  $("#criswrap").style.setProperty("--ch", crisGrande ? "85%" : "68%");
+  $("#cris-tam").textContent = crisGrande ? "Menor" : "Maior";
+};
+$("#cris-aba").href = CRIS_URL;
+$("#som-btn").onclick = async () => {
+  const a = new Audio("anuncio.mp3"); a.volume = 0.5;
+  try {
+    await a.play();
+    $("#som-btn").textContent = "🔊 Som ativado ✓"; $("#som-btn").className = "on";
+    toast("Som ativado. Os anúncios vão tocar sozinhos.");
+  } catch (e) { toast("O navegador bloqueou o som."); }
+};
+
+OBR.onReady(async () => {
+  const meta = await OBR.room.getMetadata();
+  lista = meta[K_LISTA] || [];
+  aplicarPapel((await OBR.player.getRole()) === "GM");
+  OBR.player.onChange(p => { if ((p.role === "GM") !== isGM) aplicarPapel(p.role === "GM"); });
+  OBR.room.onMetadataChange(m => { lista = m[K_LISTA] || []; renderTudo(); });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8"><title>Inventário (fundo)</title></head>
+<body>
+<script type="module">
+import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3";
+import { BASE, CH_ANUNCIO, MODAL_ANUNCIO } from "./shared.js";
+
+// Esta página fica sempre carregada, então é ela quem toca o som do anúncio.
+const som = new Audio("anuncio.mp3");
+som.preload = "auto";
+som.volume = 0.8;
+
+OBR.onReady(() => {
+  OBR.broadcast.onMessage(CH_ANUNCIO, async (evento) => {
+    const dados = evento.data;
+    if (!dados || !dados.nome) return;
+
+    let tocou = false;
+    try { som.currentTime = 0; await som.play(); tocou = true; } catch (e) {}
+
+    try { await OBR.modal.close(MODAL_ANUNCIO); } catch (e) {}
+    OBR.modal.open({
+      id: MODAL_ANUNCIO,
+      // se o som já tocou aqui, a janela do anúncio não toca de novo
+      url: BASE + "anuncio.html?som=" + (tocou ? "0" : "1") + "&d=" + encodeURIComponent(JSON.stringify(dados)),
+      fullScreen: true,
+      hidePaper: true
+    });
+  });
+});
+</script>
+</body></html>

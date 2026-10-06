@@ -1,0 +1,15 @@
+.holo { display:inline-block; perspective:900px; touch-action:none; cursor:grab; animation:flutuar 4s ease-in-out infinite; }
+.holo.ativo { animation-play-state:paused; cursor:grabbing; }
+@keyframes flutuar { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-8px); } }
+.holo-in { position:relative; display:inline-block; transform-style:preserve-3d;
+  transform:rotateX(calc(var(--rx,0) * 1deg)) rotateY(calc(var(--ry,0) * 1deg));
+  transition:transform .12s ease-out;
+  filter:drop-shadow(calc(var(--ry,0) * -1.4px) calc(var(--rx,0) * 1.4px) 18px rgba(0,0,0,.65)); }
+.holo.solto .holo-in { transition:transform .6s ease; }
+.h-base { display:block; max-width:100%; max-height:var(--hmax,42vh); user-select:none; -webkit-user-drag:none; }
+.h-glow { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; mix-blend-mode:screen; opacity:.85;
+  filter:brightness(1.7) saturate(2.2) hue-rotate(calc(var(--hue,0) * 1deg));
+  -webkit-mask-image:radial-gradient(circle at calc(var(--mx,50) * 1%) calc(var(--my,50) * 1%), #000 0%, transparent 55%);
+          mask-image:radial-gradient(circle at calc(var(--mx,50) * 1%) calc(var(--my,50) * 1%), #000 0%, transparent 55%);
+  transition:opacity .3s; }
+.holo:not(.ativo) .h-glow { opacity:0; }
